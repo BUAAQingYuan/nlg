@@ -4,6 +4,11 @@ Bidirectional GRU encoder and a GRU decoder with BahdanauAttention, beam search.
 
 The corpus can be find in [harvardnlp/sent-summary](https://github.com/harvardnlp/sent-summary).
 
+#### Requirements
+
+- python 3.4 or newer
+- tensorflow 1.3
+
 #### Reference
 
 [TensorFlow-Summarization](https://github.com/thunlp/TensorFlow-Summarization)
