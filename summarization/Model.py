@@ -62,16 +62,16 @@ class BiGRUModel(object):
                 self.att_states = tf.concat(encoder_outputs, 2)
                 self.att_states.set_shape([self.batch_size, None, state_size*2])
 
-            with tf.variable_scope("attention"):
-                # num_units = attention layer size or attention depth
-                attention = tf.contrib.seq2seq.BahdanauAttention(state_size, self.att_states, self.encoder_len)
-                att_decoder_cell = tf.contrib.seq2seq.AttentionWrapper(decoder_cell, attention, state_size)
-
             with tf.variable_scope("decoder"):
                 # decode
                 decoder_emb = tf.get_variable("embedding", [target_vocab_size, embedding_size], initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.01))
                 decoder_inputs_emb = tf.nn.embedding_lookup(decoder_emb, self.decoder_inputs)
                 helper = tf.contrib.seq2seq.TrainingHelper(decoder_inputs_emb, self.decoder_len)
+
+                # num_units = attention layer size or attention depth
+                attention = tf.contrib.seq2seq.BahdanauAttention(state_size, self.att_states, self.encoder_len)
+                att_decoder_cell = tf.contrib.seq2seq.AttentionWrapper(decoder_cell, attention, state_size)
+
                 decoder = tf.contrib.seq2seq.BasicDecoder(cell=att_decoder_cell,
                                                           helper=helper,
                                                           initial_state=att_decoder_cell.zero_state(batch_size, tf.float32).clone(cell_state=self.init_state),
@@ -99,11 +99,12 @@ class BiGRUModel(object):
                 self.updates = opt.apply_gradients(zip(clipped_gradients, params), global_step=self.global_step)
                 tf.summary.scalar('loss', self.loss)
 
+            with tf.variable_scope("decoder", reuse=True):
                 # Inference
                 # tile inputs for beam search decoder
                 enc_outputs = tf.contrib.seq2seq.tile_batch(self.att_states, multiplier=self.beam_size)
                 # add attention,attention is just a computation,no parameters.
-                inference_length = tf.contrib.seq2seq.tile_batch(self.decoder_len, multiplier=self.beam_size)
+                inference_length = tf.contrib.seq2seq.tile_batch(self.encoder_len, multiplier=self.beam_size)
                 inference_initial_state = tf.contrib.seq2seq.tile_batch(self.init_state, multiplier=self.beam_size)
                 inference_attention = tf.contrib.seq2seq.BahdanauAttention(state_size, enc_outputs, inference_length)
                 inference_decoder_cell = tf.contrib.seq2seq.AttentionWrapper(decoder_cell, inference_attention, state_size)
@@ -119,8 +120,7 @@ class BiGRUModel(object):
                     output_layer=layers_core.Dense(self.target_vocab_size),
                     length_penalty_weight=0.0
                 )
-                predict_inference_output, context_state, _ = tf.contrib.seq2seq.dynamic_decode(
-                    decoder=inference_decoder, impute_finished=False)
+                predict_inference_output, context_state, _ = tf.contrib.seq2seq.dynamic_decode(decoder=inference_decoder)
                 # translations = [length, batch_size, beam_width]
                 translations = predict_inference_output.predicted_ids
                 # prediction_ids = [length, batch_size]

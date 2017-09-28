@@ -160,14 +160,15 @@ def decode():
     sum_dict = data_util.load_dict(FLAGS.data_dir + "/sum_dict.txt")
     if doc_dict is None or sum_dict is None:
         logging.warning("Dict not found.")
-    data = data_util.load_test_data(FLAGS.test_file, doc_dict)
+    data = data_util.load_test_data(FLAGS.data_dir + "/" + FLAGS.test_file, doc_dict)
 
     with tf.Session() as sess:
         # Create model and load parameters.
         logging.info("Creating %d layers of %d units." % (FLAGS.num_layers, FLAGS.size))
         # create reverse table
-        reverse_table = tf.contrib.lookup.index_to_string_table_from_file(vocabulary_file="sum_ordered_words.txt",
+        reverse_table = tf.contrib.lookup.index_to_string_table_from_file(vocabulary_file=FLAGS.data_dir + "/sum_ordered_words.txt",
                                                                           default_value="<UNK>")
+        reverse_table.init.run()
         model = create_model(sess, reverse_table, is_training=False)
         result = []
         for idx, token_ids in enumerate(data):
@@ -181,9 +182,9 @@ def decode():
             # outputs = [batch_size,length]
             step, outputs = model.inference(sess, encoder_inputs, encoder_len)
             # If there is an EOS symbol in outputs, cut them at that point.
-            target_output = outputs[0]
-            if data_util.ID_EOS in target_output:
-                target_output = target_output[:target_output.index(data_util.ID_EOS)]
+            target_output = [item[0].decode() for item in outputs]
+            if data_util.MARK_EOS in target_output:
+                target_output = target_output[:target_output.index(data_util.MARK_EOS)]
             gen_sum = " ".join(target_output)
             result.append(gen_sum)
             logging.info("Finish {} samples. :: {}".format(idx, gen_sum[:75]))
